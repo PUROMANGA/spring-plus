@@ -17,6 +17,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+
 @Service
 @RequiredArgsConstructor
 public class TodoService {
@@ -49,10 +51,28 @@ public class TodoService {
 
 
     @Transactional(readOnly = true)
-    public Page<TodoResponse> getTodos(int page, int size) {
+    public Page<TodoResponse> getTodos(int page, int size,
+                                       String weather,
+                                       LocalDateTime startDate,
+                                       LocalDateTime endDate) {
         Pageable pageable = PageRequest.of(page - 1, size);
 
-        Page<Todo> todos = todoRepository.findAllByOrderByModifiedAtDesc(pageable);
+        /**
+         * READ ME 참조
+         */
+
+        Page<Todo> todos;
+        if (weather != null && startDate != null && endDate != null) {
+            todos = todoRepository.findByWeatherAndModifiedAtWhereStartDateAndEnddate(weather, startDate, endDate, pageable);
+        } else if(startDate != null && endDate != null) {
+            todos = todoRepository.findByModifiedAtWhereStartDateAndEnddate(startDate, endDate, pageable);
+        } else if(weather != null) {
+            todos = todoRepository.findByWeather(weather, pageable);
+        } else if((startDate == null) ^ (endDate == null)) {
+            throw new RuntimeException("수정일 시작과 수정일 끝을 둘 다 입력해주세요");
+        } else {
+            todos = todoRepository.findAllByOrderByModifiedAtDesc(pageable);
+        }
 
         return todos.map(todo -> new TodoResponse(
                 todo.getId(),
