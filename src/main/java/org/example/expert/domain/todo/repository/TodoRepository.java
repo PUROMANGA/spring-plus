@@ -1,5 +1,6 @@
 package org.example.expert.domain.todo.repository;
 
+import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.example.expert.domain.todo.entity.Todo;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -10,7 +11,8 @@ import org.springframework.data.repository.query.Param;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
-public interface TodoRepository extends JpaRepository<Todo, Long> {
+
+public interface TodoRepository extends JpaRepository<Todo, Long>, CustomTodoRepository {
 
     @Query("SELECT t " +
             "FROM Todo t " +
@@ -56,8 +58,13 @@ public interface TodoRepository extends JpaRepository<Todo, Long> {
             "ORDER BY t.modifiedAt DESC")
     Page<Todo> findByWeatherAndModifiedAtWhereStartDateAndEnddate(String weather, LocalDateTime startDate, LocalDateTime endDate, Pageable pageable);
 
-    @Query("SELECT t FROM Todo t " +
-            "LEFT JOIN t.user " +
-            "WHERE t.id = :todoId")
-    Optional<Todo> findByIdWithUser(@Param("todoId") Long todoId);
+
+    /**
+     * 사용 안하는 메소드, 하지만 나중에 확인을 위해 조금 두도록 하겠습니다.
+     */
+//    @Query("SELECT t FROM Todo t " +
+//            "LEFT JOIN t.user " +
+//            "WHERE t.id = :todoId")
+//    Optional<Todo> findByIdWithUser(@Param("todoId") Long todoId);
+
 }

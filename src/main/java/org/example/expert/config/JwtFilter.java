@@ -11,11 +11,16 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.expert.domain.user.enums.UserRole;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 
 @Slf4j
 @RequiredArgsConstructor
+
 public class JwtFilter implements Filter {
 
     private final JwtUtil jwtUtil;
@@ -39,10 +44,12 @@ public class JwtFilter implements Filter {
 
         String bearerJwt = httpRequest.getHeader("Authorization");
 
-        if (bearerJwt == null) {
-            // 토큰이 없는 경우 400을 반환합니다.
+        if(bearerJwt != null) {
+            Authentication authentication = jwtUtil.getAuthentication(bearerJwt);
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+        } else {
             httpResponse.sendError(HttpServletResponse.SC_BAD_REQUEST, "JWT 토큰이 필요합니다.");
-            return;
+            chain.doFilter(request, response);
         }
 
         String jwt = jwtUtil.substringToken(bearerJwt);

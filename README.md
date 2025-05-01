@@ -4,80 +4,71 @@
 하지만 이번에는 회사에서 상사에게 보고서를 작성한다는 느낌으로 제 오류를 분석해 보았습니다.
 
 귀중한 시간 내주셔서 읽어주시면 정말 감사할 것 같습니다.
-# LEVEL1의 해설
 
-## 1. 코드 개선 퀴즈 - @Transactional의 이해
+# LEVEL2의 해설
 
-service를 보니 전체 Transactional을 적용시킨 걸 확인하였습니다. 그런데 read-only다보니 읽는 것만 가능해 실질적으로 saveTodo는 작동하지 않았습니다.
-이것은 Transactional의 특징 때문에 이루어집니다.
+## 6. JPA Cascade
 
-Transactional은 해당 메소드가 실행되면 영속성으로 등록되고, 1차 캐시로 저장됩니다.
-여기서 1차 캐시는 빠르게 불러오기 위해 영속성 컨텍스트 내부에 엔티티를 보관하는 저장소입니다.
+사실 필살기, CascadeType.ALL을 사용하고 싶었습니다만... 여기에서는 그걸 원하지는 않아보여 PERSIST를 사용하게 되었습니다.
+그건 둘째치고, 과제에 있는
 
-그리고 Transactional을 read-only로 설정하게 된다면 마지막 더티 체킹 작업이 이루어지지 않으면서 오류가 발생하게 됩니다.
+- 할 일을 새로 저장할 시, 할 일을 생성한 유저는 담당자로 자동 등록되어야 합니다.
+- JPA의 `cascade` 기능을 활용해 할 일을 생성한 유저가 담당자로 등록될 수 있게 해주세요.
 
-혹시 제가 애매하게 알고 있는 부분이나 부가 해설이 있으시다면 꼭 좀 부탁드리겠습니다!
+를 읽었을 때, 솔직히 '아 이거 내부에서 cascade는 어떻게 작동하는 거지?' 라는 의문이 들었습니다.
+키워드는 머리에 떠올랐습니다, 영속성, 영속성 전이. 그런데 이게 어떻게 돌아가는지 궁금해서 챗gpt한테 db형식으로 출력해보라고 했습니다.
 
-## 2. 코드 추가 퀴즈 - JWT의 이해
+그러니까 cascade 설정이 안되면 todo가 저장되는 과정 중에 todo는 저장되는데 영속성 전이가 안 되서 따로 상태를 관리해야한다는 불편함을 발견하였습니다.
 
-급하게 또 변경이 생겨 추가를 하게 되었군요... 어쨌든 JWT를 구성하는 요소에 nickname을, entity에 컬럼을 추가해주고, dto에도 추가해줍니다.
-그리고 nicknmae이 같은 게 있을 때 예외 처리를 해주었습니다만 이미 entity에서 unique = true로 처리해서 같은 nickname은 애초에 입력이 안 될텐데(email도 마찬가지)... 어쨌든 email도 예외처리를 던져주어서 저도 던지게 되었습니다.
+일단은 이 정도로 알고 넘어가려 하는데 더 자세한 지식의 공유가 가능하다면 꼭 좀 부탁드립니다.
 
+## 7. N+1
 
-## 3. 코드 개선 퀴즈 -  JPA의 이해
+많은 수강생들이 진정으로 N+1문제를 이해하고 있지 않다고 저는 생각합니다.
+일단 그건 저도 크게 다르지 않다고 생각합니다(저는 자만하지 않습니다!)
 
-일단 weather과 수정시간들(시작, 끝)을 어떤 식으로 고쳐줄까, 많은 고민을 하였습니다.
-weather은 @RequestParam(required = false)으로 던져서 없어도 가능하게끔 하였고, 수정 시간은 처음에는 @RequestParam(required = false)으로 던졌습니다.
-그런데 작업을 하다보니 이러면 어느 양 쪽이 null값으로 들어왔을 때 어떻게 처리하지? 라는 고민을 하게 되었습니다.
+그래서 초반에 이 문제를 보고, Repository를 봤는데 큰 문제는 없어보였습니다.
+그리고 나서 Service를 봐도 일단은 문제가 안 보였고(코드적 오류), 그래서 과제를 확인해보니 user를 조회하고 있더군요.
 
-그래서 생각했던 방법이 몇 가지가 있었습니다.
+????????
+그래서 다시 한 번 확인했습니다, 그러니까 특정 todo_id에 달려있는 commentList를 하나 씩 꺼내서 거기에 getUser을 하고 있더군요.
+아, 솔직히 답답했습니다.
 
-1. TodoSearchTime라는 DTO class를 만들어서 NotBlank 설정하고 ModelAttribute로 던지기.
-    - 이 방법은 결국 사용자가 '난 수정일 없이 검색하려고 하는데 왜 이래?' 라는 결과를 불러올 수 있으므로 폐기하였습니다.
+이러면 todo_id : 1에 달려있는 comment_id : 1의 유저 불러오고, comment_id : 2의 유저 불러오고, 이런 비효율적인 상황이 발생하게 됩니다.
+(사실은 코드를 봤을 때부터 구려보였습니다.)
 
-2. TodoSearchTime라는 DTO class에서는 입력 조건을 FREE로 두고 아래에서 IF문으로 처리하기.
-    - 사실 별 의미가 없어보이는, 딱히 여기서 처리해도 의미가 없어보여 마찬가지로 폐기하였습니다.
-    - 정말 이건 생각의 잔재였고, 오판이었다는 생각이 듭니다.
+문제 해결 방법은 간단하다고 느꼈습니다만 조금 더 구체적으로 생각해보기로 하였습니다.
 
-3. 서비스 로직에서 다중 IF문으로 처리하기
-    - 그래서 제가 선택한 것이 이런 다중 IF문으로 처리하는 거였습니다.
-    - 이렇게 처리하면 날씨, 수정일이 다 있을 때
-    - 수정일만 있을 때
-    - 날씨만 있을 때
-    - 둘 중 하나만 null일 때
-    - 다 없을 때
-    - 이렇게 검색이 가능해집니다.
+왜 JOIN USER을 했는데 이런 결과가 나왔을까? @Transactional도 붙여줘서 영속성도 적용됐고, LAZY로 연관관계 맺어서 프록시로 가져올 거고, 애시당초에 1차 캐시로 등록되서 거기서 USER 가져오는 거 아닌가?
 
-4. 그래서 생기는 문제는?
-    - 일단 로직이 더럽습니다. 최적화 해보려고 했는데 마땅히 아는 방법이 없어서 실패했습니다.
-    - 혹시나 이 if문을 최적화 할만한 방법이 있으시면 꼭꼭 좀 공유 부탁드리겠습니다.
+이러한 질문의 본질적이고 이론적인 대답은 튜터님에게 듣고 싶습니다.
 
-## 4. 테스트 코드 퀴즈 - 컨트롤러 테스트의 이해
+참고로 제 추론 + gpt에게 질문을 해서 정리를 한 정보로 말씀을 드리자면, user를 그냥 join하면 1차 캐시에 등록이 안 되서 이러한 문제가 발생을 한다고 하네요.
+Lazy로 proxy설정을 했는데, 이때 getUser을 원래는 1차 캐시에서 가져와야하는데 등록이 안 되서 DB까지 갔다온다고 합니다!
 
-[ MockHttpServletResponse:
-Status = 400
-Error message = null
-Headers = [Content-Type:"application/json"]
-Content type = application/json
-Body = {"code":400,"message":"Todo not found","status":"BAD_REQUEST"}
-Forwarded URL = null
-Redirected URL = null
-Cookies = []
+그리고 여기 @Transactional(readOnly = true) 빼먹어서 넣어뒀습니다, 영속성 유지가 안되고 있더라구요.
 
-Status
-필요:200
-실제   :400]
+## 8. QueryDSL
 
-일단 돌려봤는데 이러한 문제가 터졌습니다. 실제 BODY에는 CODE : 400에 메세지가 출력되고, STATUS에도 BAD_REQUEST가 나와야합니다.
-그런데 지금 코드는 전부 OK가 나와있습니다. 그래서 isOk가 뭘 반환하는지, 다 까보니까 200이더군요. 그래서 위에서 하나하나 바꿔가니까 아주 친절하게 메세지가 표시되서 전부 BAD_REQUEST로 바꿨습니다.
-다만 mockMvc나 andExpect를 확실히 이해하진 못해서 여기에 관해서는 추가적인 공부가 필요할 것 같습니다.
-하지만 개발자 특성상 외우고 쓰는 건 힘들어, 다음 과제나 여기서 추가적으로 과제를 진행하면서 한 번 사용해볼테니 추후 확인 부탁드리겠습니다.
+QueryDSL, 솔직히 말씀드리자면 저는 다른 사람들 코드도 많이 봤고 제 식으로 적어서... 자신은 많이 없습니다.
+혹시나 이러한 표현보다는 이게 더 낫다, 이런 식으로 작성하는 게 훨씬 속도적인 면에서 빠르다, 이런 어드바이스가 있으면 꼭 좀 부탁드리겠습니다!
 
-## 5. 코드 개선 퀴즈 - AOP의 이해
+## 9. Spring Security
 
-지금 AOP는 딱 봐도 log를 던져주기 위해서 만들어준 것 같습니다. HttpServletRequest라는 접근에서 필요한 정보를 빼주고, 컨트롤이 끝나고 나서 log를 던집니다.
-실제로 AOP가 다 끝나고 log를 던져도 되는지 안 되는지는 모르겠습니다만 일단 실행 전 동작하라고 해서 @Before로 만들어주었습니다.
+어우, 이걸 과제로 내시다니, 너무 힘들게 했습니다.
+제 개인적인 생각인데 스프링 시큐리티는 gpt 돌리지 않는 이상 많은 수강생들이 힘들어할 것 같습니다.
 
-그리고 경로도 잘못되어있더군요. 제가 만약 상사고 이런 식으로 실수했으면 바로 잔소리 on 할 것 같습니다 ㅋㅋ
+일단 제가 시큐리티를 작성한 방식에 대해서 말씀 드리겠습니다.
+
+우선적으로 UserDetail을 구현하려고 했고, 구현한 다음은 UserDeatil 서비스를 구현해서 loadUserByUsername을 구현하였습니다.
+
+그 후 제가 제일 좋아하는 UsernamePasswordAuthenticationToken과 AuthenticationManager, SecurityContextHolder를 구현하였습니다.
+UsernamePasswordAuthenticationToken에는 util에서 필요한 정보를 담아주고, Authentication을 활용해주기 위해서 필터에서
+
+Authentication authentication = jwtUtil.getAuthentication(bearerJwt);
+SecurityContextHolder.getContext().setAuthentication(authentication);
+
+이런식으로 토큰에서 인가를 빼서 SecurityContextHolder에 넣어줬습니다. SecurityContextHolder는 인증객체를 저장해주는 역할을 하는 녀석으로서 Authentication과 SecurityContextHolder만 사용해도 Principal로 더 정확한 정보를 꺼내올 수 있기 때문에 저는 매우 애용하려고 노력하고 있습니다.
+
 
 
