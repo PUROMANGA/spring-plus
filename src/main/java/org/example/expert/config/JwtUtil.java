@@ -5,6 +5,8 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.example.expert.domain.common.exception.ServerException;
 import org.example.expert.domain.user.enums.UserRole;
@@ -27,7 +29,6 @@ import java.util.stream.Collectors;
 
 public class JwtUtil {
 
-    private static final String BEARER_PREFIX = "Bearer ";
     private static final long TOKEN_TIME = 60 * 60 * 1000L; // 60분
 
     @Value("${jwt.secret.key}")
@@ -44,8 +45,7 @@ public class JwtUtil {
     public String createToken(Long userId, String email, String nickname, UserRole userRole) {
         Date date = new Date();
 
-        return BEARER_PREFIX +
-                Jwts.builder()
+        return Jwts.builder()
                         .setSubject(String.valueOf(userId))
                         .claim("email", email)
                         .claim("nickname", nickname)
@@ -54,13 +54,6 @@ public class JwtUtil {
                         .setIssuedAt(date) // 발급일
                         .signWith(key, signatureAlgorithm) // 암호화 알고리즘
                         .compact();
-    }
-
-    public String substringToken(String tokenValue) {
-        if (StringUtils.hasText(tokenValue) && tokenValue.startsWith(BEARER_PREFIX)) {
-            return tokenValue.substring(7);
-        }
-        throw new ServerException("Not Found Token");
     }
 
     public Claims extractClaims(String token) {
@@ -82,5 +75,16 @@ public class JwtUtil {
 
         UserDetails principal = new User(claims.getSubject(), "", authorities);
         return new UsernamePasswordAuthenticationToken(principal, "", authorities);
+    }
+
+    public static String getTokenFromCookies(HttpServletRequest request) {
+        if(request.getCookies() != null) {
+            for(Cookie cookie : request.getCookies()) {
+                if("accessToken".equals(cookie.getName())) {
+                    return cookie.getValue();
+                }
+            }
+        }
+        return null;
     }
 }

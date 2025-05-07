@@ -37,26 +37,25 @@ public class JwtFilter implements Filter {
 
         String url = httpRequest.getRequestURI();
 
-        if (url.startsWith("/auth")) {
+        if (url.startsWith("/auth") || url.startsWith("/oauth2") || url.startsWith("/login/oauth2")) {
             chain.doFilter(request, response);
             return;
         }
 
-        String bearerJwt = httpRequest.getHeader("Authorization");
+        String token = JwtUtil.getTokenFromCookies(httpRequest);
 
-        if(bearerJwt != null) {
-            Authentication authentication = jwtUtil.getAuthentication(bearerJwt);
+        if(token != null) {
+            Authentication authentication = jwtUtil.getAuthentication(token);
             SecurityContextHolder.getContext().setAuthentication(authentication);
         } else {
             httpResponse.sendError(HttpServletResponse.SC_BAD_REQUEST, "JWT 토큰이 필요합니다.");
-            chain.doFilter(request, response);
+            return;
         }
 
-        String jwt = jwtUtil.substringToken(bearerJwt);
 
         try {
             // JWT 유효성 검사와 claims 추출
-            Claims claims = jwtUtil.extractClaims(jwt);
+            Claims claims = jwtUtil.extractClaims(token);
             if (claims == null) {
                 httpResponse.sendError(HttpServletResponse.SC_BAD_REQUEST, "잘못된 JWT 토큰입니다.");
                 return;
